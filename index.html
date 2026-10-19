@@ -40,7 +40,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent)}
 button{font:700 18px var(--display);letter-spacing:.06em;text-transform:uppercase;border-radius:8px;border:2px solid var(--ink);background:var(--panel);color:var(--ink);min-height:52px;padding:0 16px;cursor:pointer}
 button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
-.row{display:flex;gap:8px;flex-wrap:wrap}.row>*{flex:1 1 0;min-width:0}
+.row{display:flex;gap:8px;flex-wrap:wrap}.row>*{flex:1 1 0;min-width:0}.row>button{flex:0 0 auto}.row>input{flex:1 1 150px}
 .seg{display:grid;grid-template-columns:repeat(var(--n,3),1fr);gap:6px}
 .seg button{border-color:var(--line);font-size:17px}
 .seg button[aria-pressed="true"]{background:var(--ink);color:var(--panel);border-color:var(--ink)}
@@ -93,7 +93,7 @@ input.padtarget,textarea.padtarget{border-color:var(--accent)}
     </div>
     <div class="row">
       <button type="button" id="camLoc">Camera</button>
-      <input id="locIn" class="mono" placeholder="Handheld: scan here" autocomplete="off" enterkeyhint="done" aria-label="Spot code">
+      <input id="locIn" class="mono" placeholder="Scan spot" autocomplete="off" enterkeyhint="done" aria-label="Spot code">
     </div>
     <label>Stack level
       <div class="seg" style="--n:2" data-group="stack">
@@ -116,11 +116,11 @@ input.padtarget,textarea.padtarget{border-color:var(--accent)}
     <h2 id="h-item">3 · Item</h2>
     <div class="row">
       <button type="button" id="camUpc">Camera</button>
-      <input id="upc" class="mono" inputmode="numeric" placeholder="Handheld: scan UPC" autocomplete="off" enterkeyhint="search" aria-label="UPC">
+      <input id="upc" class="mono" inputmode="numeric" placeholder="Scan UPC" autocomplete="off" enterkeyhint="search" aria-label="UPC">
     </div>
     <div id="result" class="found" hidden aria-live="polite"></div>
     <label>What is it?<input id="name" placeholder="Brand, item, size" autocomplete="off"></label>
-    <label>Pallet ID<input id="pallet" class="mono" placeholder="Scan pallet tag (optional)" autocomplete="off"></label>
+    <label>Pallet ID<input id="pallet" class="mono" placeholder="Scan tag (optional)" autocomplete="off"></label>
   </section>
 
   <section class="panel" aria-labelledby="h-qty">
@@ -380,8 +380,8 @@ function applyMode(){
   });
   $("modeBtn").textContent = handheld ? "Handheld: on" : "Handheld: off";
   $("modeBtn").setAttribute("aria-pressed", handheld ? "true" : "false");
-  $("locIn").placeholder = handheld ? "Just scan. No need to tap." : "Handheld: scan here";
-  $("upc").placeholder = handheld ? "Just scan. No need to tap." : "Handheld: scan UPC";
+  $("locIn").placeholder = handheld ? "Just scan" : "Scan spot";
+  $("upc").placeholder = handheld ? "Just scan" : "Scan UPC";
   if (!handheld) closePad();
 }
 $("modeBtn").onclick = () => { handheld = !handheld; store.set("handheld", handheld); applyMode(); toast(handheld ? "Handheld on. Scan anytime. Tap a box to type with the keypad." : "Handheld off. Phone keyboard is back."); };
