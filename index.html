@@ -201,7 +201,8 @@ function parseLoc(raw){
     if (bay && p.get("rack") && p.get("q4_dropdown2") && p.get("side")) return mk(bay, p.get("rack"), p.get("q4_dropdown2"), p.get("side"));
     if (p.get("loc")) raw = p.get("loc");
   } catch {}
-  const m = raw.toUpperCase().match(/(\d+)\s*-\s*([A-Z])\s*-\s*([1-3])\s*-\s*([LR])/);
+  // Any separator works: some scanners type "-" as "/" or "." depending on keyboard settings.
+  const m = raw.toUpperCase().match(/(\d+)\s*[-\/._\s\\]\s*([A-Z])\s*[-\/._\s\\]\s*([1-3])\s*[-\/._\s\\]\s*([LR])/);
   return m ? mk(m[1], m[2], m[3], m[4]) : null;
 }
 function mk(bay, rack, shelf, side){
@@ -438,7 +439,8 @@ function flushScan(){
 function routeScan(s){
   const loc = parseLoc(s);
   if (loc){ setLoc(loc); return; }
-  if (/^P-?\d{2,}$/i.test(s)){ $("pallet").value = s.toUpperCase(); toast("Pallet " + s.toUpperCase() + " added."); return; }
+  const pm = s.match(/^P\s*[-\/._\\]?\s*(\d{2,})$/i);
+  if (pm){ const pid = "P-" + pm[1]; $("pallet").value = pid; toast("Pallet " + pid + " added."); return; }
   const d = s.replace(/\D/g, "");
   if (/^[\d\s-]+$/.test(s) && d.length >= 8 && d.length <= 14){
     if (state.action === "OUT - Taking items out"){ toast("Out scans use the spot only. UPC not needed.", true); return; }
