@@ -13,6 +13,18 @@ Phone and handheld scan page for the YAIPAK warehouse inventory system.
 
 Each save goes into the **YAIPAK Warehouse Scan** Jotform (form 262725329716059). The Make scenario **YAIPAK Inventory - Scan to Stock** picks it up from there and updates Stock, the Price Book, the Outbound log, and Slack.
 
+## Shelf Count page
+
+**Live page:** https://yaipak.github.io/yaipak-rack-scan/shelf.html
+
+Tablet page for the ON THE SHELVES count sheet (13 bays, 291 slots).
+
+1. Tap a bay and a slot. Scan the UPC with the handheld. The description fills in from the open product databases (or from names already logged on this device).
+2. Type Pkg Type, Qty, Box/ and Items/. Enter moves to the next box and then the next slot.
+3. Export .xlsx at the end of each shift. Load sheet restores an exported file.
+
+Work saves in the tablet's browser only. The export is the backup. UPC names it learns are shared with Rack Scan on the same device.
+
 ## Notes
 
 - No passwords or keys live in this page. It only posts to the public Jotform form.
