@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>YAIPAK Shelf Count</title>
+<meta name="theme-color" content="#2f4a43">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+/* Layout: sticky header, bay tabs, one big scan card for the active slot, the bay's slot list below. Tablet first. */
+:root{
+  --bg:#eef0ee; --panel:#ffffff; --ink:#1d2421; --muted:#5f6b66; --line:#d3d9d5;
+  --hivis:#f2b705; --hivis-ink:#1d2421; --steel:#2f4a43; --on-steel:#ffffff; --ok:#1f7a4d; --warn:#a86200; --bad:#b3261e;
+  --ok-bg:#e1f2e8; --warn-bg:#fdf0d5; --bad-bg:#fbe3e1; --sel:#fff6d6;
+  --f-display:"Barlow Condensed","Arial Narrow",Arial,sans-serif;
+  --f-body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#141917; --panel:#1d2421; --ink:#e8ece9; --muted:#9aa6a0; --line:#33403b;
+  --steel:#22362f; --on-steel:#e8ece9; --ok:#5fcf93; --warn:#f0b24a; --bad:#ff8a80;
+  --ok-bg:#183326; --warn-bg:#3a2b10; --bad-bg:#3d1c1a; --sel:#2e2a17; color-scheme:dark}}
+*{box-sizing:border-box}
+html,body{margin:0}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font:16px/1.4 var(--f-body);padding-bottom:env(safe-area-inset-bottom,0px)}
+.wrap{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));max-width:1200px;margin:0 auto}
+header{position:sticky;top:0;z-index:5;background:var(--steel);color:var(--on-steel);padding-top:env(safe-area-inset-top,0px)}
+header .wrap{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-block:10px}
+h1{font:700 26px/1 var(--f-display);letter-spacing:.02em;margin:0;text-transform:uppercase}
+.prog{font:500 14px var(--f-mono);opacity:.9}
+.spacer{flex:1}
+.save{font:500 13px var(--f-body);opacity:.9}
+button{font:600 15px var(--f-body);border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:10px 14px;cursor:pointer;min-height:44px}
+button:focus-visible,input:focus-visible{outline:3px solid var(--hivis);outline-offset:2px}
+.btn-hv{background:var(--hivis);color:var(--hivis-ink);border-color:var(--hivis)}
+.tabs{display:flex;gap:6px;overflow-x:auto;padding-block:12px 4px}
+.tab{flex:0 0 auto;min-width:66px;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 10px}
+.tab b{font:700 20px/1 var(--f-display)}
+.tab small{font:500 11px var(--f-mono);color:var(--muted)}
+.tab[aria-selected="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.tab[aria-selected="true"] small{color:var(--bg);opacity:.8}
+.tab.done small{color:var(--ok)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;margin-block:12px;overflow:hidden}
+.loc{display:flex;align-items:stretch;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.loc div{padding:8px 16px;border-right:1px solid var(--line);display:flex;flex-direction:column}
+.loc span{font:600 11px var(--f-body);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.loc strong{font:700 34px/1 var(--f-display)}
+.loc .nav{margin-left:auto;border-right:0;flex-direction:row;gap:8px;align-items:center}
+.form{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px;padding:16px}
+.f{display:flex;flex-direction:column;gap:4px;min-width:0}
+.f label{font:600 12px var(--f-body);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.f input{font:500 18px var(--f-body);padding:10px 12px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);width:100%;min-height:48px}
+.upc{grid-column:span 2}.desc{grid-column:span 4}
+.upc input{font:700 22px var(--f-mono);letter-spacing:.04em;border:2px solid var(--hivis)}
+.row2{display:flex;gap:8px}.row2 input{flex:1;min-width:0}
+.status{grid-column:1/-1;display:flex;gap:8px;align-items:center;flex-wrap:wrap;min-height:32px;font-size:15px}
+.chip{font:600 12px var(--f-body);letter-spacing:.06em;text-transform:uppercase;padding:4px 8px;border-radius:4px}
+.c-ok{background:var(--ok-bg);color:var(--ok)}.c-warn{background:var(--warn-bg);color:var(--warn)}.c-bad{background:var(--bad-bg);color:var(--bad)}.c-info{background:var(--bg);color:var(--muted)}
+.spin{width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--hivis);border-radius:50%;animation:sp .8s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation:none}}
+.tablewrap{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px;margin-bottom:16px}
+table{border-collapse:collapse;width:100%;min-width:760px;font-variant-numeric:tabular-nums}
+th{font:600 12px var(--f-body);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);text-align:left;padding:10px;border-bottom:1px solid var(--line)}
+td{padding:10px;border-bottom:1px solid var(--line);vertical-align:top}
+tr{cursor:pointer}
+tr.active td{background:var(--sel)}
+tr.active td:first-child{box-shadow:inset 4px 0 0 var(--hivis)}
+td.m{font:500 14px var(--f-mono)}
+td.loc-c{font:700 18px var(--f-display);white-space:nowrap}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--line)}
+.dot.full{background:var(--ok)}.dot.part{background:var(--warn)}
+.note{font-size:14px;color:var(--muted);padding-block:0 24px;margin:0}
+.banner{background:var(--warn-bg);color:var(--warn);border-radius:8px;padding:10px 14px;margin-top:12px;font-weight:600}
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:12px 18px;border-radius:8px;font-weight:600;z-index:20;max-width:90vw}
+@media (max-width:760px){
+  .form{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .upc,.desc{grid-column:1/-1}
+  .loc strong{font-size:28px}
+  .loc .nav{margin-left:0;width:100%;justify-content:space-between}
+}
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <h1>Shelf Count</h1>
+  <span class="prog" id="prog">0 / 0 slots</span>
+  <span class="spacer"></span>
+  <span class="save" id="saveState">Saved on this tablet</span>
+  <button id="importBtn" type="button">Load sheet</button>
+  <button id="exportBtn" class="btn-hv" type="button">Export .xlsx</button>
+  <input type="file" id="importFile" accept=".xlsx,.xls" hidden>
+</div></header>
+
+<main class="wrap">
+  <div id="banner" class="banner" hidden></div>
+  <nav class="tabs" id="tabs" role="tablist" aria-label="Bays"></nav>
+
+  <section class="card" aria-label="Active slot">
+    <div class="loc">
+      <div><span>Bay</span><strong id="lBay">1</strong></div>
+      <div><span>Rack</span><strong id="lRack">A</strong></div>
+      <div><span>Shelf</span><strong id="lShelf">1</strong></div>
+      <div><span>Side</span><strong id="lSide">L</strong></div>
+      <div class="nav">
+        <button id="prevBtn" type="button">Prev</button>
+        <button id="nextBtn" type="button" class="btn-hv">Next slot</button>
+      </div>
+    </div>
+    <form class="form" id="form" autocomplete="off">
+      <div class="f upc"><label for="upc">UPC (scan here)</label>
+        <div class="row2"><input id="upc" inputmode="numeric" enterkeyhint="search" placeholder="Scan barcode"><button type="button" id="lookBtn">Look up</button></div>
+      </div>
+      <div class="f desc"><label for="desc">Description</label><input id="desc" placeholder="Fills in after scan"></div>
+      <div class="f"><label for="pkg">Pkg type</label><input id="pkg" list="pkgList" placeholder="Case"></div>
+      <div class="f"><label for="qty">Qty</label><input id="qty" inputmode="numeric"></div>
+      <div class="f"><label for="box">Box/</label><input id="box" inputmode="numeric"></div>
+      <div class="f"><label for="items">Items/</label><input id="items" inputmode="numeric"></div>
+      <div class="status" id="status" aria-live="polite"></div>
+      <datalist id="pkgList"><option value="Pallet"><option value="Case"><option value="Box"><option value="Bag"><option value="Tote"><option value="Bundle"><option value="Loose"></datalist>
+    </form>
+  </section>
+
+  <div class="tablewrap"><table>
+    <thead><tr><th></th><th>Slot</th><th>UPC</th><th>Description</th><th>Pkg type</th><th>Qty</th><th>Box/</th><th>Items/</th></tr></thead>
+    <tbody id="tbody"></tbody>
+  </table></div>
+  <p class="note">Keep the cursor in the UPC box. The scanner types the number and hits Enter, then the description fills in. Green dot = all columns filled. Amber = started. Work saves on this tablet as you go. Export at the end of each shift as your backup.</p>
+</main>
+<div id="toast" hidden></div>
+
+<script>
+(() => {
+"use strict";
+const ROWS = [[2,1,"A",1,"L",1,"A",1],[3,null,null,null,"R",1,"A",1],[4,null,null,2,"L",1,"A",2],[5,null,null,null,"R",1,"A",2],[6,null,"B",1,"L",1,"B",1],[7,null,null,null,"R",1,"B",1],[8,null,null,2,"L",1,"B",2],[9,null,null,null,"R",1,"B",2],[10,null,"C",1,"L",1,"C",1],[11,null,null,null,"R",1,"C",1],[12,null,null,2,"L",1,"C",2],[13,null,null,null,"R",1,"C",2],[14,null,"D",1,"L",1,"D",1],[15,null,null,null,"R",1,"D",1],[16,null,null,2,"L",1,"D",2],[17,null,null,null,"R",1,"D",2],[18,null,"E",1,"L",1,"E",1],[19,null,null,null,"R",1,"E",1],[20,null,null,2,"L",1,"E",2],[21,null,null,null,"R",1,"E",2],[22,null,"F",1,"L",1,"F",1],[23,null,null,null,"R",1,"F",1],[24,null,null,2,"L",1,"F",2],[25,null,null,null,"R",1,"F",2],[26,2,"A",1,"L",2,"A",1],[27,null,null,null,"R",2,"A",1],[28,null,null,2,"L",2,"A",2],[29,null,null,null,"R",2,"A",2],[30,null,"B",1,"L",2,"B",1],[31,null,null,null,"R",2,"B",1],[32,null,null,2,"L",2,"B",2],[33,null,null,null,"R",2,"B",2],[34,null,"C",1,"L",2,"C",1],[35,null,null,null,"R",2,"C",1],[36,null,null,2,"L",2,"C",2],[37,null,null,null,"R",2,"C",2],[38,null,"D",1,"L",2,"D",1],[39,null,null,null,"R",2,"D",1],[40,null,null,2,"L",2,"D",2],[41,null,null,null,"R",2,"D",2],[42,null,"E",1,"L",2,"E",1],[43,null,null,null,"R",2,"E",1],[44,null,null,2,"L",2,"E",2],[45,null,null,null,"R",2,"E",2],[46,null,"F",1,"L",2,"F",1],[47,null,null,null,"R",2,"F",1],[48,null,null,2,"L",2,"F",2],[49,null,null,null,"R",2,"F",2],[50,3,"A",1,"L",3,"A",1],[51,null,null,null,"R",3,"A",1],[52,null,null,2,"L",3,"A",2],[53,null,null,null,"R",3,"A",2],[54,null,"B",1,"L",3,"B",1],[55,null,null,null,"R",3,"B",1],[56,null,null,2,"L",3,"B",2],[57,null,null,null,"R",3,"B",2],[58,null,"C",1,"L",3,"C",1],[59,null,null,null,"R",3,"C",1],[60,null,null,2,"L",3,"C",2],[61,null,null,null,"R",3,"C",2],[62,null,"D",1,"L",3,"D",1],[63,null,null,null,"R",3,"D",1],[64,null,null,2,"L",3,"D",2],[65,null,null,null,"R",3,"D",2],[66,null,"E",1,"L",3,"E",1],[67,null,null,null,"R",3,"E",1],[68,null,null,2,"L",3,"E",2],[69,null,null,null,"R",3,"E",2],[70,null,"F",1,"L",3,"F",1],[71,null,null,null,"R",3,"F",1],[72,null,null,2,"L",3,"F",2],[73,null,null,null,"R",3,"F",2],[74,4,"A",1,"L",4,"A",1],[75,null,null,null,"R",4,"A",1],[76,null,null,2,"L",4,"A",2],[77,null,null,null,"R",4,"A",2],[78,null,"B",1,"L",4,"B",1],[79,null,null,null,"R",4,"B",1],[80,null,null,2,"L",4,"B",2],[81,null,null,null,"R",4,"B",2],[82,null,"C",1,"L",4,"C",1],[83,null,null,null,"R",4,"C",1],[84,null,null,2,"L",4,"C",2],[85,null,null,null,"R",4,"C",2],[86,null,"D",1,"L",4,"D",1],[87,null,null,null,"R",4,"D",1],[88,null,null,2,"L",4,"D",2],[89,null,null,null,"R",4,"D",2],[90,null,"E",1,"L",4,"E",1],[91,null,null,null,"R",4,"E",1],[92,null,null,2,"L",4,"E",2],[93,null,null,null,"R",4,"E",2],[94,null,"F",1,"L",4,"F",1],[95,null,null,null,"R",4,"F",1],[96,null,null,2,"L",4,"F",2],[97,null,null,null,"R",4,"F",2],[98,5,"A",1,"L",5,"A",1],[99,null,null,null,"R",5,"A",1],[100,null,null,2,"L",5,"A",2],[101,null,null,null,"R",5,"A",2],[102,null,"B",1,"L",5,"B",1],[103,null,null,null,"R",5,"B",1],[104,null,null,2,"L",5,"B",2],[105,null,null,null,"R",5,"B",2],[106,null,"C",1,"L",5,"C",1],[107,null,null,null,"R",5,"C",1],[108,null,null,2,"L",5,"C",2],[109,null,null,null,"R",5,"C",2],[110,null,"D",1,"L",5,"D",1],[111,null,null,null,"R",5,"D",1],[112,null,null,2,"L",5,"D",2],[113,null,null,null,"R",5,"D",2],[114,null,"E",1,"L",5,"E",1],[115,null,null,null,"R",5,"E",1],[116,null,null,2,"L",5,"E",2],[117,null,null,null,"R",5,"E",2],[118,null,"F",1,"L",5,"F",1],[119,null,null,null,"R",5,"F",1],[120,null,null,2,"L",5,"F",2],[121,null,null,null,"R",5,"F",2],[122,6,"A",1,"L",6,"A",1],[123,null,null,null,"R",6,"A",1],[124,null,null,2,"L",6,"A",2],[125,null,null,null,"R",6,"A",2],[126,null,"B",1,"L",6,"B",1],[127,null,null,null,"R",6,"B",1],[128,null,null,2,"L",6,"B",2],[129,null,null,null,"R",6,"B",2],[130,null,"C",1,"L",6,"C",1],[131,null,null,null,"R",6,"C",1],[132,null,null,2,"L",6,"C",2],[133,null,null,null,"R",6,"C",2],[134,null,"D",1,"L",6,"D",1],[135,null,null,null,"R",6,"D",1],[136,null,null,2,"L",6,"D",2],[137,null,null,null,"R",6,"D",2],[138,null,"E",1,"L",6,"E",1],[139,null,null,null,"R",6,"E",1],[140,null,null,2,"L",6,"E",2],[141,null,null,null,"R",6,"E",2],[142,null,"F",1,"L",6,"F",1],[143,null,null,null,"R",6,"F",1],[144,null,null,2,"L",6,"F",2],[145,null,null,null,"R",6,"F",2],[146,7,"A",1,"L",7,"A",1],[147,null,null,1,"R",7,"A",1],[148,null,null,2,"L",7,"A",2],[149,null,null,2,"R",7,"A",2],[150,null,"B",1,"L",7,"B",1],[151,null,null,1,"R",7,"B",1],[152,null,null,2,"L",7,"B",2],[153,null,null,2,"R",7,"B",2],[154,null,"C",1,"L",7,"C",1],[155,null,null,1,"R",7,"C",1],[156,null,null,2,"L",7,"C",2],[157,null,null,2,"R",7,"C",2],[158,null,"D",1,"L",7,"D",1],[159,null,null,1,"R",7,"D",1],[160,null,null,2,"L",7,"D",2],[161,null,null,2,"R",7,"D",2],[162,null,"E",1,"L",7,"E",1],[163,null,null,1,"R",7,"E",1],[164,null,null,2,"L",7,"E",2],[165,null,null,2,"R",7,"E",2],[166,null,"F",1,"L",7,"F",1],[167,8,"A",1,"L",8,"A",1],[168,null,null,1,"R",8,"A",1],[169,null,null,2,"L",8,"A",2],[170,null,null,2,"R",8,"A",2],[171,null,"B",1,"L",8,"B",1],[172,null,null,1,"R",8,"B",1],[173,null,null,2,"L",8,"B",2],[174,null,null,2,"R",8,"B",2],[175,null,"C",1,"L",8,"C",1],[176,null,null,1,"R",8,"C",1],[177,null,null,2,"L",8,"C",2],[178,null,null,2,"R",8,"C",2],[179,null,"D",1,"L",8,"D",1],[180,null,null,1,"R",8,"D",1],[181,null,null,2,"L",8,"D",2],[182,null,null,2,"R",8,"D",2],[183,null,"E",1,"L",8,"E",1],[184,null,null,1,"R",8,"E",1],[185,null,null,2,"L",8,"E",2],[186,null,null,2,"R",8,"E",2],[187,null,"F",1,"L",8,"F",1],[188,9,"A",1,"L",9,"A",1],[189,null,null,1,"R",9,"A",1],[190,null,null,2,"L",9,"A",2],[191,null,null,2,"R",9,"A",2],[192,null,"B",1,"L",9,"B",1],[193,null,null,1,"R",9,"B",1],[194,null,null,2,"L",9,"B",2],[195,null,null,2,"R",9,"B",2],[196,null,"C",1,"L",9,"C",1],[197,null,null,1,"R",9,"C",1],[198,null,null,2,"L",9,"C",2],[199,null,null,2,"R",9,"C",2],[200,null,"D",1,"L",9,"D",1],[201,null,null,1,"R",9,"D",1],[202,null,null,2,"L",9,"D",2],[203,null,null,2,"R",9,"D",2],[204,null,"E",1,"L",9,"E",1],[205,null,null,1,"R",9,"E",1],[206,null,null,2,"L",9,"E",2],[207,null,null,2,"R",9,"E",2],[208,null,"F",1,"L",9,"F",1],[209,10,"A",1,"L",10,"A",1],[210,null,null,1,"R",10,"A",1],[211,null,null,2,"L",10,"A",2],[212,null,null,2,"R",10,"A",2],[213,null,"B",1,"L",10,"B",1],[214,null,null,1,"R",10,"B",1],[215,null,null,2,"L",10,"B",2],[216,null,null,2,"R",10,"B",2],[217,null,"C",1,"L",10,"C",1],[218,null,null,1,"R",10,"C",1],[219,null,null,2,"L",10,"C",2],[220,null,null,2,"R",10,"C",2],[221,null,"D",1,"L",10,"D",1],[222,null,null,1,"R",10,"D",1],[223,null,null,2,"L",10,"D",2],[224,null,null,2,"R",10,"D",2],[225,null,"E",1,"L",10,"E",1],[226,null,null,1,"R",10,"E",1],[227,null,null,2,"L",10,"E",2],[228,null,null,2,"R",10,"E",2],[229,null,"F",1,"L",10,"F",1],[230,11,"A",1,"L",11,"A",1],[231,null,null,1,"R",11,"A",1],[232,null,null,2,"L",11,"A",2],[233,null,null,2,"R",11,"A",2],[234,null,"B",1,"L",11,"B",1],[235,null,null,1,"R",11,"B",1],[236,null,null,2,"L",11,"B",2],[237,null,null,2,"R",11,"B",2],[238,null,"C",1,"L",11,"C",1],[239,null,null,1,"R",11,"C",1],[240,null,null,2,"L",11,"C",2],[241,null,null,2,"R",11,"C",2],[242,null,"D",1,"L",11,"D",1],[243,null,null,1,"R",11,"D",1],[244,null,null,2,"L",11,"D",2],[245,null,null,2,"R",11,"D",2],[246,null,"E",1,"L",11,"E",1],[247,null,null,1,"R",11,"E",1],[248,null,null,2,"L",11,"E",2],[249,null,null,2,"R",11,"E",2],[250,null,"F",1,"L",11,"F",1],[251,12,"A",1,"L",12,"A",1],[252,null,null,1,"R",12,"A",1],[253,null,null,2,"L",12,"A",2],[254,null,null,2,"R",12,"A",2],[255,null,"B",1,"L",12,"B",1],[256,null,null,1,"R",12,"B",1],[257,null,null,2,"L",12,"B",2],[258,null,null,2,"R",12,"B",2],[259,null,"C",1,"L",12,"C",1],[260,null,null,1,"R",12,"C",1],[261,null,null,2,"L",12,"C",2],[262,null,null,2,"R",12,"C",2],[263,null,"D",1,"L",12,"D",1],[264,null,null,1,"R",12,"D",1],[265,null,null,2,"L",12,"D",2],[266,null,null,2,"R",12,"D",2],[267,null,"E",1,"L",12,"E",1],[268,null,null,1,"R",12,"E",1],[269,null,null,2,"L",12,"E",2],[270,null,null,2,"R",12,"E",2],[271,null,"F",1,"L",12,"F",1],[272,13,"A",1,"L",13,"A",1],[273,null,null,1,"R",13,"A",1],[274,null,null,2,"L",13,"A",2],[275,null,null,2,"R",13,"A",2],[276,null,"B",1,"L",13,"B",1],[277,null,null,1,"R",13,"B",1],[278,null,null,2,"L",13,"B",2],[279,null,null,2,"R",13,"B",2],[280,null,"C",1,"L",13,"C",1],[281,null,null,1,"R",13,"C",1],[282,null,null,2,"L",13,"C",2],[283,null,null,2,"R",13,"C",2],[284,null,"D",1,"L",13,"D",1],[285,null,null,1,"R",13,"D",1],[286,null,null,2,"L",13,"D",2],[287,null,null,2,"R",13,"D",2],[288,null,"E",1,"L",13,"E",1],[289,null,null,1,"R",13,"E",1],[290,null,null,2,"L",13,"E",2],[291,null,null,2,"R",13,"E",2],[292,null,"F",1,"L",13,"F",1]];   // [sheetRow, bayCell, rackCell, shelfCell, side, bay, rack, shelf]
+const FIELDS = ["upc","desc","pkg","qty","box","items"];
+const $ = id => document.getElementById(id);
+const store = {
+  get(k, d){ try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch { return false; } }
+};
+
+/* ---------- slots, grouped by bay ---------- */
+const bays = [];
+ROWS.forEach(r => { const b = r[5]; (bays[b - 1] = bays[b - 1] || {bay:b, rows:[]}).rows.push(r[0]); });
+const slot = {}; ROWS.forEach(r => slot[r[0]] = {row:r[0], side:r[4], bay:r[5], rack:r[6], shelf:r[7]});
+const order = ROWS.map(r => r[0]);
+
+/* ---------- state ---------- */
+const data = store.get("ss_data", {});            // sheetRow -> {upc,desc,src,pkg,qty,box,items}
+const learned = store.get("rs_learned", {});      // shared with Rack Scan on this device: upc -> name
+let dirty = store.get("ss_dirty", 0);
+let active = store.get("ss_active", order[0]); if (!slot[active]) active = order[0];
+let bIdx = slot[active].bay - 1;
+const rec = row => data[row] || (data[row] = {});
+const filled = d => d ? FIELDS.filter(f => (d[f] ?? "") !== "").length : 0;
+
+let toastT;
+function toast(msg){ const t = $("toast"); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 3500); }
+function persist(){
+  const ok = store.set("ss_data", data); store.set("ss_dirty", dirty); store.set("ss_active", active);
+  $("saveState").textContent = ok ? (dirty ? dirty + " change" + (dirty === 1 ? "" : "s") + " since last export" : "Saved on this tablet") : "NOT SAVING: browser storage is blocked";
+}
+
+/* ---------- GTIN check digit ---------- */
+function validGTIN(code){
+  if (!/^\d{8}$|^\d{12,14}$/.test(code)) return false;
+  const d = code.split("").map(Number), check = d.pop();
+  let sum = 0; d.reverse().forEach((n, i) => sum += n * (i % 2 === 0 ? 3 : 1));
+  return (10 - (sum % 10)) % 10 === check;
+}
+
+/* ---------- render ---------- */
+function setStatus(kind, text, spin){
+  const s = $("status"); s.textContent = "";
+  if (spin){ const sp = document.createElement("span"); sp.className = "spin"; s.appendChild(sp); }
+  const c = document.createElement("span"); c.className = "chip c-" + kind;
+  c.textContent = {ok:"Found", warn:"Check", bad:"Not found", info: spin ? "Looking up" : "Ready"}[kind];
+  const t = document.createElement("span"); t.textContent = text;
+  s.append(c, t);
+}
+function renderTabs(){
+  const nav = $("tabs"); nav.textContent = "";
+  bays.forEach((g, i) => {
+    const done = g.rows.filter(r => filled(data[r]) === FIELDS.length).length;
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "tab" + (done === g.rows.length ? " done" : "");
+    b.setAttribute("role", "tab"); b.setAttribute("aria-selected", i === bIdx);
+    const t = document.createElement("b"); t.textContent = "Bay " + g.bay;
+    const s = document.createElement("small"); s.textContent = done + "/" + g.rows.length;
+    b.append(t, s); b.onclick = () => select(g.rows[0]);
+    nav.appendChild(b);
+  });
+  const full = order.filter(r => filled(data[r]) === FIELDS.length).length;
+  $("prog").textContent = full + " / " + order.length + " slots done";
+}
+function renderTable(){
+  const tb = $("tbody"); tb.textContent = "";
+  bays[bIdx].rows.forEach(row => {
+    const s = slot[row], d = data[row] || {}, n = filled(d);
+    const tr = document.createElement("tr"); tr.dataset.row = row;
+    if (row === active) tr.className = "active";
+    const cells = [["", ""], [s.rack + s.shelf + " " + s.side, "loc-c"], [d.upc || "", "m"], [d.desc || "", ""], [d.pkg || "", ""], [d.qty ?? "", "m"], [d.box ?? "", "m"], [d.items ?? "", "m"]];
+    cells.forEach(([v, cls], i) => {
+      const td = document.createElement("td"); if (cls) td.className = cls;
+      if (i === 0){ const dot = document.createElement("span"); dot.className = "dot" + (n === FIELDS.length ? " full" : n ? " part" : ""); td.appendChild(dot); }
+      else td.textContent = v;
+      tr.appendChild(td);
+    });
+    tr.onclick = () => select(row);
+    tb.appendChild(tr);
+  });
+}
+function renderCard(){
+  const s = slot[active];
+  $("lBay").textContent = s.bay; $("lRack").textContent = s.rack; $("lShelf").textContent = s.shelf; $("lSide").textContent = s.side;
+}
+function renderAll(){ renderTabs(); renderTable(); renderCard(); }
+function select(row){
+  active = row; bIdx = slot[row].bay - 1;
+  const d = data[row] || {};
+  FIELDS.forEach(f => $(f).value = d[f] ?? "");
+  renderAll(); persist();
+  setStatus("info", d.upc ? "This slot has data. Scan again to replace it." : "Scan the product UPC.");
+  $("upc").focus();
+  const tr = document.querySelector('tr[data-row="' + row + '"]'); if (tr) tr.scrollIntoView({block:"nearest"});
+}
+function step(dir){ const i = order.indexOf(active), n = order[i + dir]; if (n !== undefined) select(n); }
+function setField(row, f, v, src){
+  const d = rec(row); if (d[f] === v) return;
+  d[f] = v; if (src) d.src = src; dirty++;
+  if (row === active && document.activeElement !== $(f)) $(f).value = v;
+  persist(); renderTabs(); renderTable();
+}
+function remember(upc, name){ if (upc && name && learned[upc] !== name){ learned[upc] = name; store.set("rs_learned", learned); } }
+
+/* ---------- UPC lookup: this device first, then the open product databases ---------- */
+const SOURCES = [
+  ["food", "https://world.openfoodfacts.org/api/v2/product/"],
+  ["personal care", "https://world.openbeautyfacts.org/api/v2/product/"],
+  ["household", "https://world.openproductsfacts.org/api/v2/product/"]
+];
+const variants = upc => { const v = [upc]; if (upc.length === 12) v.push("0" + upc); if (upc.length === 13 && upc[0] === "0") v.push(upc.slice(1)); return v; };
+let seq = 0;
+async function lookup(){
+  const row = active, my = ++seq;
+  const upc = $("upc").value.replace(/\D/g, "");
+  if (upc.length < 8){ setStatus("warn", "That read is too short. Scan again."); return; }
+  setField(row, "upc", upc);
+  const warn = validGTIN(upc) ? "" : " Check digit fails, so this may be a misread. Rescan to be sure.";
+  if (learned[upc]){ setField(row, "desc", learned[upc], "device"); setStatus("ok", "Logged before on this tablet." + warn); $("pkg").focus(); return; }
+  setStatus("info", "Searching food, personal care and household databases for " + upc + "...", true);
+  const tries = [];
+  variants(upc).forEach(code => SOURCES.forEach(([kind, base]) => tries.push((async () => {
+    const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 6000);
+    try {
+      const r = await fetch(base + code + ".json?fields=product_name,brands,quantity", {signal: ctl.signal});
+      const j = await r.json();
+      if (j.status === 1 && j.product && j.product.product_name) return {kind, p: j.product};
+    } catch {} finally { clearTimeout(to); }
+    return null;
+  })())));
+  const hit = (await Promise.all(tries)).find(Boolean);
+  if (hit){
+    const p = hit.p, brand = (p.brands || "").split(",")[0].trim();
+    let nm = p.product_name.trim();
+    if (brand && !nm.toLowerCase().includes(brand.toLowerCase())) nm = brand + " " + nm;
+    const qty = (p.quantity || "").replace(/\s*\u212e/g, "").replace(/\s+e$/, "").trim();
+    if (qty && !nm.includes(qty)) nm += " " + qty;
+    setField(row, "desc", nm, "database"); remember(upc, nm);
+    if (row === active){ setStatus("ok", "Found in " + hit.kind + " database. Glance at the box and fix if wrong." + warn); $("pkg").focus(); }
+  } else if (row === active){
+    setStatus("bad", (navigator.onLine ? "Not in the open databases. Type what it is. It will fill in next time." : "No signal. Type what it is.") + warn);
+    $("desc").focus();
+  }
+}
+
+/* ---------- events ---------- */
+$("form").addEventListener("submit", e => e.preventDefault());
+$("upc").addEventListener("keydown", e => { if (e.key === "Enter"){ e.preventDefault(); lookup(); } });
+$("upc").addEventListener("input", () => { const v = $("upc").value.replace(/\D/g, ""); if (v !== $("upc").value) $("upc").value = v; });
+$("lookBtn").onclick = lookup;
+const NEXT = ["desc","pkg","qty","box","items"];
+NEXT.forEach((f, i) => {
+  $(f).addEventListener("input", () => setField(active, f, $(f).value, f === "desc" ? "typed" : null));
+  $(f).addEventListener("change", () => { if (f === "desc"){ const d = rec(active); remember(d.upc, d.desc); } });
+  $(f).addEventListener("keydown", e => { if (e.key !== "Enter") return; e.preventDefault(); if (i < NEXT.length - 1) $(NEXT[i + 1]).focus(); else step(1); });
+});
+$("nextBtn").onclick = () => step(1);
+$("prevBtn").onclick = () => step(-1);
+
+/* ---------- export / import (same layout as ON THE SHELVES) ---------- */
+const HEAD = ["BAY","RACK","SHELF","L/R","UPC","DESCRIPTION","PKG TYPE","QTY","BOX/","ITEMS/"];
+const num = v => (v === "" || v == null) ? null : (isNaN(+v) ? v : +v);
+$("exportBtn").onclick = () => {
+  if (typeof XLSX === "undefined"){ toast("Export tool did not load. Check the signal and reload."); return; }
+  const aoa = [HEAD].concat(ROWS.map(r => { const d = data[r[0]] || {}; return [r[1], r[2], r[3], r[4], d.upc || null, d.desc || null, d.pkg || null, num(d.qty), num(d.box), num(d.items)]; }));
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ROWS.forEach((r, i) => { const d = data[r[0]] || {}; if (d.upc) ws[XLSX.utils.encode_cell({r:i + 1, c:4})] = {t:"s", v:d.upc}; });
+  ws["!cols"] = [6,6,6,5,16,44,12,8,8,8].map(w => ({wch:w}));
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+  XLSX.writeFile(wb, "ON_THE_SHELVES_" + new Date().toISOString().slice(0, 10) + ".xlsx");
+  dirty = 0; persist(); toast("Exported. Check your Downloads.");
+};
+$("importBtn").onclick = () => $("importFile").click();
+$("importFile").addEventListener("change", async e => {
+  const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+  try {
+    const wb = XLSX.read(await f.arrayBuffer());
+    const aoa = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1, blankrows:true, defval:null, raw:true});
+    let n = 0;
+    ROWS.forEach((r, i) => {
+      const x = aoa[i + 1]; if (!x) return;
+      const v = {upc: x[4] == null ? "" : String(x[4]).replace(/\D/g, ""), desc: x[5] ?? "", pkg: x[6] ?? "", qty: x[7] ?? "", box: x[8] ?? "", items: x[9] ?? ""};
+      if (FIELDS.some(k => String(v[k]) !== "")){ data[r[0]] = Object.fromEntries(FIELDS.map(k => [k, String(v[k])])); n++; remember(data[r[0]].upc, data[r[0]].desc); }
+    });
+    persist(); select(active); toast("Loaded " + n + " filled slots from " + f.name + ".");
+  } catch { toast("Could not read that file. Use the ON THE SHELVES .xlsx."); }
+});
+
+/* ---------- boot ---------- */
+if (!store.set("ss_probe", 1)){ const b = $("banner"); b.hidden = false; b.textContent = "This browser is blocking storage, so nothing will save. Turn off private browsing and reload."; }
+window.addEventListener("beforeunload", e => { if (dirty > 20){ e.preventDefault(); e.returnValue = ""; } });
+select(active);
+})();
+</script>
+</body>
+</html>
